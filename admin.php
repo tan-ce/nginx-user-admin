@@ -1,34 +1,7 @@
 <?php require 'common.inc.php';
 
-$db = new SQLite3('db/users.sqlite',
-    SQLITE3_OPEN_CREATE | SQLITE3_OPEN_READWRITE);
-$db->busyTimeout(10000);
-
-// Make sure tables are set up
-$db->query('CREATE TABLE IF NOT EXISTS "users" (
-    "name" VARCHAR(32) PRIMARY KEY NOT NULL,
-    "hash" TEXT NOT NULL,
-    "comment" TEXT NOT NULL
-)');
-$db->query('CREATE TABLE IF NOT EXISTS "invites" (
-    "token" VARCHAR(22) NOT NULL PRIMARY KEY,
-    "expiry" DATETIME NOT NULL,
-    "groups" TEXT NOT NULL,
-    "comment" TEXT NOT NULL
-)');
-$db->query('CREATE TABLE IF NOT EXISTS "groups" (
-    "user" VARCHAR(32) NOT NULL
-        REFERENCES users(name)
-            ON DELETE CASCADE
-            ON UPDATE CASCADE,
-    "grp" VARCHAR(32) NOT NULL,
-    PRIMARY KEY (user, grp)
-)');
-
-// Housekeeping
-$db->query("DELETE FROM invites WHERE expiry < datetime('now');");
-
-// Init
+// Extra init for admin pages
+db_rw_init();
 session_start();
 if (!isset($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = token_gen();
@@ -68,7 +41,7 @@ function auth_admin() {
     exit;
 }
 
-// "Get Field"
+// "Get Field" - get a POST field and escape for SQL
 function gf($name, $optional = false) {
     if (!isset($_POST[$name])) {
         http_response_code(400);
@@ -81,10 +54,6 @@ function gf($name, $optional = false) {
         exit;
     }
     return SQLite3::escapeString($_POST[$name]);
-}
-
-function jsesc($js) {
-    return htmlentities(addslashes($js));
 }
 
 function csrf_check() {
@@ -119,12 +88,16 @@ function admin() {
             $user = gf('user');
             $grp = gf('grp');
             if ($grp == '') {
-                http_response_code(400);
                 echo "Group cannot be blank";
                 exit;
             }
-            $db->query("INSERT INTO groups(user, grp) VALUES ".
-                "('$user', '$grp')");
+            if (preg_match('/^[a-zA-Z0-9_-]+$/', $grp) === 1) {
+                $db->query("INSERT INTO groups(user, grp) VALUES ".
+                    "('$user', '$grp')");
+            } else {
+                echo "Group must only contain letters, numbers, '_', or '-'";
+                exit;
+            }
             break;
 
         case 'delmember':
@@ -135,10 +108,21 @@ function admin() {
                 "user = '$user' AND grp = '$grp'");
             break;
 
+        case 'delgroup':
+            auth_admin();
+            $grp = gf('grp');
+            $db->query("DELETE FROM groups WHERE grp = '$grp'");
+            break;
+
         case 'edit_comment':
             auth_admin();
             $user = gf('user');
-            $comment = gf('comment');
+            // Comment may be blank
+            if (isset($_POST['comment'])) {
+                $comment = $_POST['comment'];
+            } else {
+                $comment = '';
+            }
             $db->query("UPDATE users SET comment = '$comment' WHERE name = '$user'");
             break;
 
@@ -168,6 +152,8 @@ function admin() {
             $pass2 = gf('pass2');
             if ($invite === false) {
                 echo "Could not find your invite";
+            } else if ($preg_match('/[a-zA-Z0-9_-]+/', $user) !== 1) {
+                echo "Usernames must only contain letters, numbers, '_', or '-'";
             } else if ($pass != $pass2) {
                 echo "Passwords do not match";
             } else if (strlen($pass) < 8) {
@@ -187,7 +173,7 @@ function admin() {
                     "('$user', '$hash', '$comment')";
                 if ($db->query($query) === false) {
                     echo "Error creating user: ";
-                    echo htmlentities($db->lastErrorMsg());
+                    echo htmlesc($db->lastErrorMsg());
                     $db->query("ROLLBACK");
                     return;
                 }
@@ -199,7 +185,7 @@ function admin() {
                         "('$user', '$g')";
                     if ($db->query($query) === false) {
                         echo "Error setting group permissions: ";
-                        echo htmlentities($db->lastErrorMsg());
+                        echo htmlesc($db->lastErrorMsg());
                         $db->query("ROLLBACK");
                         return;
                     }
@@ -223,200 +209,9 @@ function admin() {
     
     // Show the page then
     auth_admin();
-    ?><html><head><title>Admin</title>
-    <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/style.css" />
-    <script
-        src="https://code.jquery.com/jquery-3.3.1.min.js"
-        integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
-        crossorigin="anonymous"></script>
-    <script type="text/javascript">
-        var csrf_token = "<?php echo $_SESSION['csrf_token']; ?>";
-
-        function deluser(user) {
-            if (confirm("Really delete " + user + "?")) {
-                $.post('<?php echo ADMIN_URL; ?>', {
-                    'action': 'deluser',
-                    'user': user,
-                    'csrf_token': csrf_token
-                }, function(ret) {
-                    if (ret != '') alert(ret);
-                    else window.location.reload();
-                });
-            }
-
-            return false;
-        }
-        function addgroup(user) {
-            grp = prompt("Add " + user + " to which group?", "");
-            if (grp == null || grp == '') return false;
-
-            $.post('<?php echo ADMIN_URL; ?>', {
-                'action': 'addgroup',
-                'user': user,
-                'grp': grp,
-                'csrf_token': csrf_token
-            }, function(ret) {
-                if (ret != '') alert(ret);
-                else window.location.reload();
-            });
-
-            return false;
-        }
-        function delmember(user, grp) {
-            if (!confirm("Really remove " + user + " from " + grp + "?")) {
-                return false;
-            }
-            $.post('<?php echo ADMIN_URL; ?>', {
-                'action': 'delmember',
-                'user': user,
-                'grp': grp,
-                'csrf_token': csrf_token
-            }, function(ret) {
-                if (ret != '') alert(ret);
-                else window.location.reload();
-            });
-
-            return false;
-        }
-        function delinvite(token) {
-            if (confirm("Really delete this invite?")) {
-                $.post('<?php echo ADMIN_URL; ?>', {
-                    'action': 'delinvite',
-                    'token': token,
-                    'csrf_token': csrf_token
-                }, function(ret) {
-                    if (ret != '') alert(ret);
-                    else window.location.reload();
-                });
-            }
-
-            return false;
-        }
-        function edit_comment(user) {
-            var ret = prompt("Please enter the new comment:", "");
-            if (ret === null) {
-                return false;
-            }
-            $.post('<?php echo ADMIN_URL; ?>', {
-                'action': 'edit_comment',
-                'user': user,
-                'comment': ret,
-                'csrf_token': csrf_token
-            }, function(ret) {
-                if (ret != '') alert(ret);
-                else window.location.reload();
-            });
-            return false;
-        }
-    </script>
-    <body><div class="center-wrap">
-
-    <!-- User Table -->
-    <h1>By User</h1>
-    <p>Admin Group: <?php echo ADMIN_GROUP; ?><br></p>
-    <table><?php
-            $query = $db->query("SELECT DISTINCT grp FROM groups ORDER BY grp ASC");
-            $grps = array();
-            while ($g = $query->fetchArray(SQLITE3_ASSOC)) {
-                $grps[] = $g['grp'];
-            }
-            /* Header row start */
-?>      <tr><th>User</th><th>Comment</th><th></th><th></th><?php
-            foreach ($grps as $g) {
-                echo '<th>'.htmlentities($g).'</th>';
-            }?></tr>
-        <?php  /* Header row end */
-        
-        $users = $db->query("SELECT * FROM users ORDER BY name COLLATE NOCASE ASC");
-        while ($r = $users->fetchArray(SQLITE3_ASSOC)) { 
-            $name = htmlentities($r['name']);
-            $jsname = jsesc($r['name']); ?>
-            <tr><td><?php echo $name; ?></td>
-            <td><div class="edit-box" onclick="javascript: return edit_comment('<?php
-                echo $jsname; ?>');"></div><?php echo htmlentities($r['comment']); ?></td>
-            <td><a href="#" onclick="javascript: return deluser('<?php
-                echo $jsname; ?>')">Delete</a></td>
-            <td><a href="#" onclick="javascript: return addgroup('<?php
-                echo $jsname; ?>')">Add Group</a></td>
-            <?php $e_u = SQLite3::escapeString($r['name']);
-            foreach ($grps as $grp) {
-                $e_g = SQLite3::escapeString($grp);
-                $res = $db->querySingle("SELECT user FROM groups WHERE ".
-                    "user = '$e_u' AND grp = '$e_g'");
-                if (is_null($res) || ($res === false)) {
-                    echo '<td></td>';
-                } else {
-                    ?><td><a href="#" onclick="javascript: return delmember('<?php
-                    echo $jsname; ?>', '<?php 
-                    echo jsesc($grp); ?>')"><?php
-                    echo htmlentities($grp); ?></a></td><?php
-                }
-            } ?></tr>
-        <?php } ?>
-    </table><br>
-
-    <!-- Group Table -->
-    <h1>By Group</h1>
-    <table>
-        <?php $groupings = $db->query(
-            "SELECT * FROM groups ORDER BY grp ASC, user ASC");
-        $cur = "";
-        while ($r = $groupings->fetchArray(SQLITE3_ASSOC)) {
-            if ($cur != $r['grp']) {
-                $cur = $r['grp'];
-                echo '<tr><th colspan="2">'.
-                    '<strong>'.$cur."</strong></th></tr>\n";
-            } ?>
-            <tr><td><?php echo htmlentities($r['user']); ?></td>
-            <!-- <td><?php echo htmlentities($r['grp']); ?></td> -->
-            <td><a href="#" onclick="javascript: return delmember('<?php
-                echo jsesc($r['user']); ?>', '<?php 
-                echo jsesc($r['grp']); ?>')">Remove</a></td></tr>
-        <?php } ?>
-    </table><br>
-
-    <!-- Invites Table -->
-    <h1>Invites</h1>
-    <table>
-        <tr>
-            <th>Link</th>
-            <th>Expiry</th>
-            <th>Groups</th>
-            <th>Comment</th>
-            <th></th>
-        </tr>
-        <?php $invites = $db->query("SELECT * FROM invites ".
-            "ORDER BY expiry DESC");
-        while ($i = $invites->fetchArray(SQLITE3_ASSOC)) { 
-            $link = ADMIN_URL."?token=".$i['token']; ?>
-        <tr>
-            <td><a href="<?php echo $link; ?>"><?php echo $link; ?></a></td>
-            <td><?php echo $i['expiry']; ?></td>
-            <td><?php echo htmlentities($i['groups']); ?></td>
-            <td><?php echo htmlentities($i['comment']); ?></td>
-            <td>
-                <a href="#" onclick="javascript: return delinvite('<?php
-                echo jsesc($i['token']); ?>')">Remove</a>
-            </td>
-        </tr>
-        <?php } ?>
-    </table><br>
-
-    <h1>Create New Invite</h1>
-    <?php new_invite_preamble(); ?>
-    <form action="<?php echo ADMIN_URL; ?>" method="post">
-        <input type="hidden" name="action" value="newinvite">
-
-        Groups (seperate with colons):<br>
-        <input type="text" name="groups"><br>
-        Comments:<br>
-        <input type="text" name="comment"><br>
-        <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
-        <input type="submit" value="Create Invite">
-    </form>
-    
-    </div></body></html>
-<?php }
+    require 'admin_page.inc.php';
+    admin_page();
+}
 
 // Returns false if the token is invalid
 function get_invite($token) {
@@ -432,7 +227,7 @@ function get_invite($token) {
     return false;
 }
 
-function new_user($token) {
+function new_user_page($token) {
     global $db;
     $invite = get_invite($token);
     if ($invite === false) {
@@ -443,21 +238,8 @@ function new_user($token) {
     ?><html><head><title>New user registration</title>
     <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/style.css" />
     </head><body><div class="center-wrap">
-    <h1>Create New User</h1>
-    <form action="<?php echo ADMIN_URL; ?>" method="post">
-        <input type="hidden" name="action" value="createuser">
-        <input type="hidden" name="token" value="<?php 
-            echo htmlentities($invite['token']); ?>">
-        Username:<br>
-        <input type="text" maxlength="32" name="user"><br>
-        Password (at least 8 characters, enter twice):<br>
-        <input type="password" name="pass1"><br>
-        <input type="password" name="pass2"><br>
-        <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
-        <input type="submit" value="Create User">
-    </form>
     </div></body></html><?php
 }
 
-if (isset($_GET['token'])) new_user($_GET['token']);
+if (isset($_GET['token'])) new_user_page($_GET['token']);
 else admin();

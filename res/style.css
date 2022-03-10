@@ -33,14 +33,17 @@ td, th {
     padding: 5px;
 }
 
+tr.hover {
+    background-color: #eee;
+}
+
 pre {
     font-family: monospace;
 }
 
 .center-wrap {
-    margin: 10px;
+    margin: 15px 10px;
     min-width: 760px;
-    padding: 15px;
     border: 1px solid #D0D0D0;
     -moz-box-shadow: 0 0 8px #D0D0D0;
     -webkit-box-shadow: 0 0 8px #D0D0D0;

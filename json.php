@@ -1,13 +1,6 @@
 <?php require 'common.inc.php';
 
-$db = new SQLite3('db/users.sqlite',
-    SQLITE3_OPEN_READONLY);
-
-function debug_dump($var) {
-    ob_start();
-    var_dump($var);
-    file_put_contents('db/debug.txt', ob_get_clean());
-}
+db_ro_init();
 
 $creds = json_decode(file_get_contents('php://input'), true);
 $auth_ok = false;
