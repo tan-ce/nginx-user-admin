@@ -10,7 +10,7 @@ if (isset($creds['username']) && isset($creds['password'])) {
     $pass = $creds['password'];
     $uri = $_SERVER['DOCUMENT_URI'];
 
-    $auth_ok = check_auth($uri, $user, $pass);
+    $auth_ok = check_auth_uri($uri, $user, $pass);
 }
 
 if ($auth_ok) {

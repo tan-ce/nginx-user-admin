@@ -1,28 +1,45 @@
-<?php function new_user_page($token) {
-    global $db;
+<?php global $db;
+/*
+ * Precondition: $_GET['token'] is set.
+ */
 
-    page_head('New User Registration');
-    echo '<div class="center-wrap">'."\n";
+$token = $_GET['token'];
+
+page_head('New User Registration'); ?>
+<script type="text/javascript">
+    $(document).ready(function() {
+        $('#tabs').tabs();
+        $('.button').button();
+    });
+</script></head><body>
+
+<div id="tabs" class="center-wrap">
+    <ul><li><a href="#new_user">Create New User</a></li></ul>
+    <div id="new_user">
+    <?php if (!is_null($message)) {
+        $msg = htmlesc($message);
+        echo "<p class=\"message\">$msg</p>\n";
+    } 
 
     $invite = get_invite($token);
     if ($invite === false) {
-        echo "The invite token is not valid";
+        echo "<p class=\"message\">The invite token is not valid</p>\n";
     } else { ?>
-        <h1>Create New User</h1>
-        <form action="<?php echo ADMIN_URL; ?>" method="post">
+        <form action="<?php echo ADMIN_URL; ?>?token=<?php echo htmlesc($token); ?>" method="post">
             <input type="hidden" name="action" value="createuser">
-            <input type="hidden" name="token" value="<?php 
-                echo htmlesc($invite['token']); ?>">
-            Username:<br>
-            <input type="text" maxlength="32" name="user"><br>
-            Password (at least 8 characters, enter twice):<br>
-            <input type="password" name="pass1"><br>
-            <input type="password" name="pass2"><br>
-            <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
-            <input type="submit" value="Create User">
-        </form>
-<?php    }
 
-    echo "</div>\n";
-    page_tail();
-}
+            <p>Username:<br>
+            <input type="text" maxlength="32" name="user"></p>
+
+            <p>Password (at least 8 characters, enter twice):<br>
+            <input type="password" name="pass1"><br>
+            <input type="password" name="pass2"></p>
+
+            <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+            <input type="submit" value="Create User" class="button">
+        </form>
+<?php    } ?>
+
+    </div>
+</div>
+<?php page_tail();

@@ -4,7 +4,8 @@
 }
 
 a, a:visited {
-    color: blue;
+    /* Colour should match jQuery UI settings */
+    color: #333;
 }
 
 table {
@@ -60,4 +61,12 @@ pre {
 
 .edit-box:before {
     content: "[edit]";
+}
+
+#current_user {
+    float: right;
+}
+
+p.message {
+    color: red;
 }

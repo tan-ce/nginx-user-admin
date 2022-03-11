@@ -8,7 +8,7 @@ if (isset($_SERVER['PHP_AUTH_USER']) && isset($_SERVER['PHP_AUTH_PW'])) {
     $pass = $_SERVER['PHP_AUTH_PW'];
     $uri = $_SERVER['DOCUMENT_URI'];
 
-    $auth_ok = check_auth($uri, $user, $pass);
+    $auth_ok = check_auth_uri($uri, $user, $pass);
 }
 
 if ($auth_ok) {

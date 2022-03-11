@@ -1,6 +1,16 @@
-<?php function admin_page() {
-    global $db;
-    page_head("Admin"); ?>
+<?php global $db, $user_role, $user_data;
+
+require_auth();
+if ($user_role != AUTH_ADMIN) {
+    /*
+     * Non-admin user only allowed to change password
+     */
+    $_GET['passwd'] = $user_data['name'];
+    require 'passwd_page.inc.php';
+    exit;
+}
+
+page_head("Admin"); ?>
 <script type="text/javascript">
     var csrf_token = "<?php echo $_SESSION['csrf_token']; ?>";
 
@@ -107,6 +117,8 @@
         }, function() {
             $(this).removeClass('hover');
         });
+        $('.want-buttons a').button();
+        $('.button').button();
     }
 
     $(function() {
@@ -131,6 +143,12 @@
     });
 </script>
 <body>
+<div id="current_user">
+    Logged in as:
+    <?php global $user_data;
+    echo htmlesc($user_data['name']); ?>
+    <a href="?page=logout">[Logout]</a>
+</div><br clear="all">
 <div id="tabs" class="center-wrap">
 <ul>
     <li><a href="#users">Users</a></li>
@@ -142,14 +160,14 @@
 <div id="users">
     <p>Admin Group: <?php echo ADMIN_GROUP; ?><br></p>
     <p>Click a group name to remove that user from that group.<br></p>
-    <table id="users_table"><?php
+    <table id="users_table" class="want-buttons"><?php
             $query = $db->query("SELECT DISTINCT grp FROM groups ORDER BY grp ASC");
             $grps = array();
             while ($g = $query->fetchArray(SQLITE3_ASSOC)) {
                 $grps[] = $g['grp'];
             }
             /* Header row start */
-    ?>      <tr><th>User</th><th>Comment</th><th></th><th></th><?php
+    ?>      <tr><th>User</th><th>Comment</th><th></th><th><th></th></th><?php
             foreach ($grps as $g) {
                 echo '<th>'.htmlesc($g).'</th>';
             }?></tr>
@@ -158,7 +176,8 @@
         $users = $db->query("SELECT * FROM users ORDER BY name COLLATE NOCASE ASC");
         while ($r = $users->fetchArray(SQLITE3_ASSOC)) { 
             $name = htmlesc($r['name']);
-            $jsname = jsesc($r['name']); ?>
+            $jsname = jsesc($r['name']);
+            $urlname = urlencode($r['name']); ?>
             <tr><td><?php echo $name; ?></td>
             <td><div class="edit-box" onclick="javascript: return edit_comment('<?php
                 echo $jsname; ?>');"></div><?php echo htmlesc($r['comment']); ?></td>
@@ -166,6 +185,7 @@
                 echo $jsname; ?>')">Delete</a></td>
             <td><a href="#" onclick="javascript: return addgroup('<?php
                 echo $jsname; ?>')">Add Group</a></td>
+            <td><a href="?passwd=<?php echo $urlname; ?>">Set Pass</a></td>
             <?php $e_u = SQLite3::escapeString($r['name']);
             foreach ($grps as $grp) {
                 $e_g = SQLite3::escapeString($grp);
@@ -187,7 +207,7 @@
 <!-- Group Table -->
 <div id="groups">
     <p>To remove a user from a group, go to the User tab.</p>
-    <table>
+    <table class="want-buttons">
     <tr><th>Group</th><th></th></tr>
     <?php $result = $db->query("SELECT DISTINCT grp FROM groups ORDER BY grp");
     while ($g = $result->fetchArray(SQLITE3_ASSOC)) {
@@ -220,7 +240,7 @@
             <td><?php echo htmlesc($i['groups']); ?></td>
             <td><?php echo htmlesc($i['comment']); ?></td>
             <td>
-                <a href="#" onclick="javascript: return delinvite('<?php
+                <a class="button" href="#" onclick="javascript: return delinvite('<?php
                 echo jsesc($i['token']); ?>')">Remove</a>
             </td>
         </tr>
@@ -232,16 +252,16 @@
     <form action="<?php echo ADMIN_URL; ?>#invites" method="post">
         <input type="hidden" name="action" value="newinvite">
 
-        Groups (seperate with colons):<br>
-        <input type="text" name="groups"><br>
-        Comments:<br>
-        <input type="text" name="comment"><br>
+        <p>Groups (seperate with colons):<br>
+        <input type="text" name="groups"></p>
+
+        <p>Comments:<br>
+        <input type="text" name="comment"></p>
+
         <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
-        <input type="submit" value="Create Invite">
+        <input type="submit" value="Create Invite" class="button">
     </form>
 </div>
 
 </div>
-<?php 
-    page_tail();
-} // function admin_page()
+<?php page_tail();
