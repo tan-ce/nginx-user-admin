@@ -11,8 +11,8 @@ function token_gen() {
     return substr(strtr(base64_encode(random_bytes(16)), '+/', '-_'), 0, 22);
 }
 
-// "Get Field" - get a POST field and escape for SQL
-function gf($name, $optional = false) {
+// "Get Field and Escape" - get a POST field and escape for SQL
+function gfe($name, $optional = false) {
     if (!isset($_POST[$name])) {
         show_error("Invalid argument(s)", true /* set_400 */);
     }
@@ -22,8 +22,8 @@ function gf($name, $optional = false) {
     return SQLite3::escapeString($_POST[$name]);
 }
 
-// "Get Field" - get a POST field and escape for SQL
-function gf_ui($name, $optional = false) {
+// "Get Field and Escape" - get a POST field and escape for SQL
+function gfe_ui($name, $optional = false) {
     if (!isset($_POST[$name])) {
         show_error_ui("Invalid argument(s)");
     }
@@ -31,6 +31,28 @@ function gf_ui($name, $optional = false) {
         show_error_ui("'$name' cannot be empty");
     }
     return SQLite3::escapeString($_POST[$name]);
+}
+
+// "Get Field" - get a POST field and DON'T escape for SQL
+function gf($name, $optional = false) {
+    if (!isset($_POST[$name])) {
+        show_error("Invalid argument(s)", true /* set_400 */);
+    }
+    if (!$optional && (strlen($_POST[$name]) == 0)) {
+        show_error("'$name' cannot be empty", true /* set_400 */);
+    }
+    return $_POST[$name];
+}
+
+// "Get Field" - get a POST field and DON'T escape for SQL
+function gf_ui($name, $optional = false) {
+    if (!isset($_POST[$name])) {
+        show_error_ui("Invalid argument(s)");
+    }
+    if (!$optional && (strlen($_POST[$name]) == 0)) {
+        show_error_ui("'$name' cannot be empty");
+    }
+    return $_POST[$name];
 }
 
 // Does not return
@@ -90,8 +112,8 @@ function handle_post() {
     switch ($_POST['action']) {
     case 'passwd':
         /*
-            * This action is NOT an AJAX action - our messages new to be a full UI message.
-            */
+         * This action is NOT an AJAX action - our messages new to be a full UI message.
+         */
 
         global $db, $user_role, $user_data;
 
@@ -138,15 +160,15 @@ function handle_post() {
 
     case 'deluser':
         require_admin();
-        $user = gf('user');
+        $user = gfe('user');
         $db->query("DELETE FROM groups WHERE user = '$user'");
         $db->query("DELETE FROM users WHERE name = '$user'");
         break;
 
     case 'addgroup':
         require_admin();
-        $user = gf('user');
-        $grp = gf('grp');
+        $user = gfe('user');
+        $grp = gfe('grp');
         if ($grp == '') {
             show_error("Group cannot be blank");
         }
@@ -160,21 +182,21 @@ function handle_post() {
 
     case 'delmember':
         require_admin();
-        $user = gf('user');
-        $grp = gf('grp');
+        $user = gfe('user');
+        $grp = gfe('grp');
         $db->query("DELETE FROM groups WHERE ".
             "user = '$user' AND grp = '$grp'");
         break;
 
     case 'delgroup':
         require_admin();
-        $grp = gf('grp');
+        $grp = gfe('grp');
         $db->query("DELETE FROM groups WHERE grp = '$grp'");
         break;
 
     case 'edit_comment':
         require_admin();
-        $user = gf('user');
+        $user = gfe('user');
         // Comment may be blank
         if (isset($_POST['comment'])) {
             $comment = $_POST['comment'];
@@ -186,14 +208,14 @@ function handle_post() {
 
     case 'delinvite':
         require_admin();
-        $token = gf('token');
+        $token = gfe('token');
         $db->query("DELETE FROM invites WHERE token = '$token'");
         break;
 
     case 'newinvite':
         require_admin();
-        $groups = gf('groups', true);
-        $comment = gf('comment', true);
+        $groups = gfe('groups', true);
+        $comment = gfe('comment', true);
         $token = token_gen();
         $db->query("INSERT INTO invites ".
             "(token, expiry, groups, comment) VALUES ".
@@ -217,9 +239,9 @@ function handle_post() {
             show_error_ui("Could not find your invite");
         }
 
-        $user = strtolower(gf_ui('user', true /* optional */));
-        $pass = strtolower(gf_ui('pass1', true /* optional */));
-        $pass2 = strtolower(gf_ui('pass2', true /* optional */));
+        $user = strtolower(gfe_ui('user', true /* optional */));
+        $pass = gf_ui('pass1', true /* optional */);
+        $pass2 = gf_ui('pass2', true /* optional */);
         $pwdcheck = check_password($pass);
 
         if (strlen($user) == 0) {
