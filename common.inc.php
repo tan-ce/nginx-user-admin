@@ -111,6 +111,7 @@ function require_auth($no_admin_fail = false) {
         } else {
             // No credentials, ask for it
             send_401();
+            exit;
         }
     }
 
