@@ -15,6 +15,12 @@ page_head($title); ?>
     });
 </script></head><body>
 
+<div id="current_user">
+    Logged in as:
+    <?php global $user_data;
+    echo htmlesc($user_data['name']); ?>
+    <a href="?page=logout">[Logout]</a>
+</div><br clear="all">
 <div id="tabs" class="center-wrap">
     <ul><li><a href="#passwd"><?php echo htmlesc($title); ?></a></li></ul>
     <div id="passwd">
