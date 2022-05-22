@@ -3,7 +3,7 @@
 /*
  * Author: Tan Chee Eng
  *
- * Directory "db" needs to be writable by the PHP interperter.
+ * File DB_PATH needs to be writable by the PHP interperter.
  */
 
 // The user allowed to access the admin page
@@ -16,6 +16,8 @@ define('ADMIN_GROUP', 'admin');
 define('REALM', 'realm');
 // The path to the admin page, without the trailing slash
 define('ADMIN_URL', 'https://example.com/admin');
+// The filesystem path to the SQLite database
+define('DB_PATH', 'db/users.sqlite');
 // Will be run just after the "Create New Invite" header
 function new_invite_preamble() {
 }

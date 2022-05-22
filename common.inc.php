@@ -208,7 +208,7 @@ function check_auth_uri($uri, $user, $pass) {
 function db_rw_init() {
     global $db;
 
-    $db = new SQLite3('db/users.sqlite',
+    $db = new SQLite3(DB_PATH,
         SQLITE3_OPEN_CREATE | SQLITE3_OPEN_READWRITE);
     $db->busyTimeout(10000);
 
@@ -240,7 +240,7 @@ function db_rw_init() {
 function db_ro_init() {
     global $db;
 
-    $db = new SQLite3('db/users.sqlite',
+    $db = new SQLite3(DB_PATH,
         SQLITE3_OPEN_READONLY);
 }
 
