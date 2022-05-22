@@ -134,13 +134,13 @@ function page_head($title = null) {
         echo ADMIN_URL."/res/$file";
     };
     $jq = function($file) {
-        echo ADMIN_URL."/res/jquery-ui-1.13.0.custom/$file";
+        echo ADMIN_URL."/res/jquery-ui-1.13.1.custom/$file";
     };
 ?><!DOCTYPE html>
 <html><head><title><?php echo htmlesc($title); ?></title>
 <link rel="stylesheet" href="<?php $jq('jquery-ui.min.css'); ?>" />
 <link rel="stylesheet" href="<?php $res('style.css'); ?>" />
-<script src="<?php $res('jquery-3.6.0.min.js'); ?>"></script>
+<script src="<?php $jq('external/jquery/jquery.js'); ?>"></script>
 <script src="<?php $jq('jquery-ui.min.js'); ?>"></script>
 <?php }
 
