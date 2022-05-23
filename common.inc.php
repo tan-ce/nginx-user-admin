@@ -1,5 +1,11 @@
 <?php require 'config.inc.php';
 
+// For compatibility with earlier versions of config.inc.php
+if (!defined('DB_PATH')) {
+    define('DB_PATH', 'db/users.sqlite');
+}
+
+// Defines used by to track logins on the admin page
 define('AUTH_NONE',  0);
 define('AUTH_USER',  1);
 define('AUTH_ADMIN', 2);
