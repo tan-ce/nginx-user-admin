@@ -10,21 +10,28 @@ define('AUTH_NONE',  0);
 define('AUTH_USER',  1);
 define('AUTH_ADMIN', 2);
 
-global $user_data, $user_role, $db, $default_title, $message;
+global $user_data;
+global $user_role;
+global $db;
+global $default_title;
+global $message;
+global $ui_error_return;
 
 $user_data = null;
 $user_role = AUTH_NONE;
 $db = null;
 $default_title = "User Administration";
 $message = null;
+$ui_error_return = null;
 
 /*
  * Functions
  */
 
-function send_401() {
-    header("WWW-Authenticate: Basic realm=\"".REALM."\"");
-    http_response_code(401);
+function redirect_login() {
+    header("Location: " . ADMIN_URL . "/?page=login");
+    http_response_code(302);
+    exit;
 }
 
 function redirect($url) {
@@ -56,15 +63,16 @@ function check_user($user, $pass) {
     return false;
 }
 
- // Checks auth status.
- //
-  // If $no_admin_fail is true, will send 401 if not admin
- //
- // If the password is bad or the user doesn't exist, exit and
- // request for authentication credentials.
- //
- // On successful authentication, the globals $user and $user_role
- // will be updated.
+/*
+ * Checks auth status.
+ *
+ * If $no_admin_fail is true and the user is not an admin, will cause a
+ * redirect to the login page.
+ *
+ * If no user is logged in, will also cause a redirect to the login page.
+ *
+ * On successful check, the globals $user_data and $user_role will be set.
+ */
 function require_auth($no_admin_fail = false) {
     global $db, $user_data, $user_role;
 
@@ -73,57 +81,24 @@ function require_auth($no_admin_fail = false) {
         exit;
     }
 
-    if ($user_role == AUTH_NONE) {
-        // Make sure to reset
-        $user_data = null;
-
-        if (    isset($_SERVER['PHP_AUTH_USER']) && 
-                isset($_SERVER['PHP_AUTH_PW']))
-        {
-            $user = $_SERVER['PHP_AUTH_USER'];
-            $pass = $_SERVER['PHP_AUTH_PW'];
-            $u = check_user($user, $pass);
-            if ($u === false) {
-                // Password bad, immediate fail
-                send_401();
-                exit;
-            } else {
-                // Password checks out, update $user_data
-                $user_data = $u;
-
-                // Check if user is an Admin
-                if ($u['name'] == ADMIN_USER) {
-                    $user_role = AUTH_ADMIN;
-                } else {
-                    // Check if user belongs to admin group
-                    // Normal user by default
-                    $user_role = AUTH_USER;
-
-                    $u = SQLite3::escapeString($u['name']);
-                    $g = SQLite3::escapeString(ADMIN_GROUP);
-                    try {
-                        $res = $db->querySingle(
-                            "SELECT user FROM groups WHERE ".
-                                "user = '$u' AND grp = '$g'");
-                        if (!is_null($res) && $res !== false) {
-                            // User is in ADMIN_GROUP
-                            $user_role = AUTH_ADMIN;
-                        }
-                    } catch (Exception $e) {
-                        // Ignore, default to "not admin".
-                    }
-                }
-            }
+    if (isset($_SESSION['user_role'])) {
+        if (!isset($_SESSION['user_data'])) {
+            // This should not happen (tm), but if it does, assume not
+            // logged in
+            $user_role = AUTH_NONE;
+            $user_data = null;
         } else {
-            // No credentials, ask for it
-            send_401();
-            exit;
+            $user_role = $_SESSION['user_role'];
+            $user_data = $_SESSION['user_data'];
         }
     }
 
+    if ($user_role == AUTH_NONE) {
+        redirect_login();
+    }
+
     if ($no_admin_fail && ($user_role != AUTH_ADMIN)) {
-        send_401();
-        exit;
+        redirect_login();
     }
 }
 
@@ -266,9 +241,14 @@ function set_default_ui_title($title) {
     $default_title = $title;
 }
 
+function set_ui_error_return($uri) {
+    global $ui_error_return;
+    $ui_error_return = $uri;
+}
+
 // Does not return, will exit after displaying
 function show_error_ui($msg, $title = null) {
-    global $db, $default_title;
+    global $db, $default_title, $ui_error_return;
     if (!is_null($db)) $db->close();
 
     if (is_null($title)) $title = $default_title;
@@ -278,16 +258,24 @@ function show_error_ui($msg, $title = null) {
     ?>
 
     <script type="text/javascript">
-            $(document).ready(function() {
-                $('#tabs').tabs();
-                $('.button').button();
-            });
-        </script></head><body>
+        $(document).ready(function() {
+            $('#tabs').tabs();
+            $('.button').button();
+        });
+    </script></head><body>
 
-        <div id="tabs" class="center-wrap">
-            <ul><li><a href="#error"><?php echo $title; ?></a></li></ul>
-            <div id="error"><?php echo $msg; ?></div>
-        </div><?php
+    <div id="tabs" class="center-wrap">
+        <ul><li><a href="#error"><?php echo $title; ?></a></li></ul>
+        <div id="error">
+            <p><?php echo $msg; ?></p>
+            <?php if (!is_null($ui_error_return)) { ?>
+                <a class="button" href="<?php echo $ui_error_return; ?>">
+                    Back
+                </a>
+            <?php } ?>
+        </div>
+    </div><?php
+
     page_tail();
     exit;
 }
