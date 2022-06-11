@@ -1,5 +1,9 @@
 <?php require 'common.inc.php';
 
+/*
+ * This file implements nginx's subrequest auth protocol.
+ */
+
 db_ro_init();
 
 $auth_ok = false;

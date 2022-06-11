@@ -1,5 +1,14 @@
 <?php require 'common.inc.php';
 
+/*
+ * This file implements a JSON version of an authentication request. The
+ * JSON object is to be sent as the POST body and should contain:
+ *      username
+ *      password
+ * As with nginx subrequest auth, the URI is used to scope the
+ * authentication request.
+ */
+
 db_ro_init();
 
 $creds = json_decode(file_get_contents('php://input'), true);
