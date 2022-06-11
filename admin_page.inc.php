@@ -233,7 +233,7 @@ page_head("Admin"); ?>
         <?php $invites = $db->query("SELECT * FROM invites ".
             "ORDER BY expiry DESC");
         while ($i = $invites->fetchArray(SQLITE3_ASSOC)) { 
-            $link = ADMIN_URL."?token=".$i['token']; ?>
+            $link = ADMIN_URL."/?token=".$i['token']; ?>
         <tr>
             <td><a href="<?php echo $link; ?>"><?php echo $link; ?></a></td>
             <td><?php echo $i['expiry']; ?></td>
