@@ -1,6 +1,6 @@
 <?php
 
-define('DB_VER', 1);
+define('DB_VER', 2);
 
 require_once 'config.inc.php';
 
@@ -37,32 +37,9 @@ function db_upgrade_check($db_ro = true) {
         }
 
         $db->exec("BEGIN EXCLUSIVE;");
-        $db->exec('CREATE TABLE "users" (
-            "name" VARCHAR(32) PRIMARY KEY NOT NULL,
-            "hash" TEXT NOT NULL,
-            "comment" TEXT NOT NULL
-        );');
-        $db->exec('CREATE TABLE "invites" (
-            "token" VARCHAR(22) NOT NULL PRIMARY KEY,
-            "expiry" DATETIME NOT NULL,
-            "groups" TEXT NOT NULL,
-            "comment" TEXT NOT NULL
-        );');
-        $db->exec('CREATE TABLE "groups" (
-            "user" VARCHAR(32) NOT NULL
-                REFERENCES users(name)
-                    ON DELETE CASCADE
-                    ON UPDATE CASCADE,
-            "grp" VARCHAR(32) NOT NULL,
-            PRIMARY KEY (user, grp)
-        );');
-        $db->exec('CREATE TABLE "options" (
-            "name" VARCHAR(16) PRIMARY KEY NOT NULL,
-            "value" TEXT NOT NULL
-        );');
-        $db->exec('INSERT INTO options("name", "value")
-            VALUES("version", "'.strval(DB_VER).'");');
+        require 'db_install.inc.php';
         $db->exec("COMMIT;");
+
         log_msg("Initialized new database");
 
         if ($db_ro) {
@@ -93,15 +70,16 @@ function db_upgrade_check($db_ro = true) {
             $db->close();
             $db = db_get_rw();
         }
+
+        $upgrade_ok = true;
         $db->exec("BEGIN EXCLUSIVE;");
 
-        if ($version <= 0) {
-            $db->exec('CREATE TABLE "options" (
-                "name" VARCHAR(16) PRIMARY KEY NOT NULL,
-                "value" TEXT NOT NULL
-            );');
-            $db->exec('INSERT INTO options("name", "value")
-                VALUES("version", "'.strval(DB_VER).'");');
+        require 'db_upgrade.inc.php';
+
+        if (!$upgrade_ok) {
+            $db->exec("ROLLBACK;");
+            log_die("Upgrade of database (".$version." to ".
+                strval(DB_VER).") failed");
         }
 
         $db->exec("COMMIT;");

@@ -79,10 +79,11 @@ function passwd_page($msg = null) {
 }
 
 // Does not return
-function new_user_page($msg = null) {
+// Precondition: global $invite is set
+function invite_new_page($msg = null) {
     global $message;
     $message = $msg;
-    require 'new_user_page.inc.php';
+    require 'invite_new_page.inc.php';
     exit;
 }
 
@@ -202,65 +203,102 @@ function handle_post_passwd() {
     }
 }
 
-function handle_post_createuser() {
-    global $db;
+function handle_post_invite_new() {
+    global $db, $invite;
     /*
      * This action is NOT an AJAX action - our messages new to be a full UI message.
      */
     set_default_ui_title("Create New User");
 
-    if (!isset($_GET['token'])) {
+    if (!isset($_POST['token'])) {
         show_error_ui("Missing token");
     }
-    $invite = get_invite($_GET['token']);
+    $invite = get_invite($_POST['token']);
     if ($invite === false) {
         show_error_ui("Could not find your invite");
     }
+    switch ($invite['type']) {
+        case INVITE_NEW:
+            $email = null;
+            break;
+        case INVITE_NEW_EMAIL:
+            $email = $invite['email'];
+            break;
+        default:
+            show_error_ui("Wrong invite type");
+    }
 
-    $user = strtolower(gfe_ui('user', true /* optional */));
+    if (is_null($invite['name'])) {
+        $user = strtolower(gf_ui('user', true /* optional */));
+        if (strlen($user) == 0) {
+            invite_new_page("Please provide a username");
+        } else if (preg_match('/^[a-zA-Z0-9_-]+$/', $user) !== 1) {
+            invite_new_page("Usernames must only contain letters, numbers, '_', or '-'");
+        }
+    } else {
+        $user = $invite['name'];
+    }
+
     $pass = gf_ui('pass1', true /* optional */);
     $pass2 = gf_ui('pass2', true /* optional */);
     $pwdcheck = check_password($pass);
 
-    if (strlen($user) == 0) {
-        new_user_page("Please provide a username");
-    } else if (preg_match('/[a-zA-Z0-9_-]+/', $user) !== 1) {
-        new_user_page("Usernames must only contain letters, numbers, '_', or '-'");
-    } else if ($pass != $pass2) {
-        new_user_page("Passwords do not match");
+    if ($pass != $pass2) {
+        invite_new_page("Passwords do not match");
     } else if ($pwdcheck !== true) {
-        new_user_page($pwdcheck);
+        invite_new_page($pwdcheck);
     } else {
-        $res = $db->querySingle("SELECT name FROM users WHERE name = '$user'");
+        // Check if username already taken
+        $e = SQLite3::escapeString($user);
+        $res = $db->querySingle("SELECT name FROM users WHERE name = '$e'");
         if (!is_null($res) && ($res !== false)) {
-            new_user_page("Error: Username already taken");
+            invite_new_page("Error: Username already taken");
         }
+
+        // Hash password
         $hash = password_hash($pass, PASSWORD_DEFAULT);
-        $comment = SQLite3::escapeString($invite['comment']);
-        $db->query("BEGIN TRANSACTION");
-        $query = "INSERT INTO users(name, hash, comment) VALUES ".
-            "('$user', '$hash', '$comment')";
-        if ($db->query($query) === false) {
+
+        /*
+         * Add user to database
+         */
+        $db->exec("BEGIN TRANSACTION;");
+        $stmt = $db->prepare('INSERT INTO users(name, email, hash, comment)
+            VALUES(:name, :email, :hash, :comment);');
+        if ($stmt === false) {
+            $db->exec("ROLLBACK;");
+            show_error_ui("Internal database error (prepare)");
+        }
+        $stmt->bindValue(":name", $user, SQLITE3_TEXT);
+        $stmt->bindValue(":email", $email, SQLITE3_TEXT);
+        $stmt->bindValue(":hash", $hash, SQLITE3_TEXT);
+        $stmt->bindValue(":comment", $invite['comment'], SQLITE3_TEXT);
+
+        if ($stmt->execute() === false) {
             $errmsg = "Error creating user: ".htmlesc($db->lastErrorMsg());
-            $db->query("ROLLBACK");
+            $db->exec("ROLLBACK;");
             show_error_ui($errmsg);
         }
 
         foreach (explode(':', $invite['groups']) as $g) {
             if ($g == '') continue;
-            $g = SQLite3::escapeString($g);
-            $query = "INSERT INTO groups(user, grp) VALUES ".
-                "('$user', '$g')";
-            if ($db->query($query) === false) {
+            $stmt = $db->prepare('INSERT INTO groups(user, grp)
+                VALUES(:user, :grp);');
+            if ($stmt === false) {
+                $db->exec("ROLLBACK;");
+                show_error_ui("Internal database error (prepare)");
+            }
+            $stmt->bindValue(":user", $user, SQLITE3_TEXT);
+            $stmt->bindValue(":grp", $g, SQLITE3_TEXT);
+            if ($stmt->execute() === false) {
                 $errmsg = "Error setting group permissions: ".htmlesc($db->lastErrorMsg());
-                $db->query("ROLLBACK");
+                $db->exec("ROLLBACK;");
                 show_error_ui($errmsg);
             }
         }
 
         $t = SQLite3::escapeString($invite['token']);
-        $db->query("DELETE FROM invites WHERE token = '$t'");
-        $db->query("COMMIT");
+        $db->query("DELETE FROM invites WHERE token = '$t';");
+        $db->query("COMMIT;");
         log_msg("Created user '${user}' with comment ".
             "'${invite['comment']}'");
         show_msg_ui("User '$user' created successfully!");
@@ -295,8 +333,8 @@ function handle_post() {
         handle_post_passwd();
         exit;
 
-    case 'createuser':
-        handle_post_createuser();
+    case 'invite_new':
+        handle_post_invite_new();
         exit;
 
     case 'deluser':
@@ -359,18 +397,52 @@ function handle_post() {
         log_msg("Deleted invitation");
         break;
 
-    case 'newinvite':
+    case 'add_invite_new':
         require_admin();
-        $groups = gfe('groups', true);
-        $comment = gfe('comment', true);
+
+        set_ui_error_return(ADMIN_URL."/#invites");
+
+        $groups = gf('groups', true);
+        $comment = gf('comment', true);
+        $name = trim(gf('name', true));
         $token = token_gen();
-        $db->query("INSERT INTO invites ".
-            "(token, expiry, groups, comment) VALUES ".
-                "('$token', datetime('now', '30 days'), ".
-                    "'$groups', '$comment')");
+
+        if (strlen($name) == 0) {
+            $name = null;
+        } else {
+            $name = strtolower($name);
+            if (preg_match('/^[a-zA-Z0-9_-]+$/', $name) !== 1) {
+                redirect_error_ui("Usernames must only contain letters, numbers, '_', or '-'");
+            }
+            $e = SQLite3::escapeString($name);
+            $res = $db->querySingle("SELECT name FROM users WHERE name = '$e'");
+            if (!is_null($res) && ($res !== false)) {
+                redirect_error_ui("Username '$name' is already taken");
+            }
+        }
+
+        $stmt = $db->prepare(
+            'INSERT INTO invites
+                ("token", "type", "name", "expiry", "groups", "comment")
+            VALUES
+                (:token, :type, :name, datetime("now", "30 days"),
+                    :groups, :comment);');
+        $stmt->bindValue(":token", $token, SQLITE3_TEXT);
+        $stmt->bindValue(":type", INVITE_NEW, SQLITE3_INTEGER);
+        $stmt->bindValue(":name", $name, SQLITE3_TEXT);
+        $stmt->bindValue(":groups", $groups, SQLITE3_TEXT);
+        $stmt->bindValue(":comment", $comment, SQLITE3_TEXT);
+
+        if ($stmt->execute() === false) {
+            redirect_error_ui("Error creating invitation!");
+        }
 
         header('Location: '.ADMIN_URL, true, 303);
-        log_msg("Created invitation with comment '$comment'");
+        if (is_null($name)) {
+            log_msg("Created invitation with comment '$comment'");
+        } else {
+            log_msg("Created invitation for '$name' with comment '$comment'");
+        }
         break;
 
     default:
@@ -398,11 +470,31 @@ if (isset($_POST['action'])) {
     exit;
 }
 
+// Determine the name of the page
 if (isset($_GET['page'])) {
     $page = $_GET['page'];
 } else {
-    if (isset($_GET['token'])) $page = 'new_user';
-    else if (isset($_GET['passwd'])) $page = 'passwd';
+    if (isset($_GET['token'])) {
+        global $invite;
+        $invite = get_invite($_GET['token']);
+        if ($invite === false) {
+            show_error_ui("Could not find your invite");
+        }
+        switch ($invite['type']) {
+            case INVITE_NEW:
+                $page = "invite_new";
+                break;
+            case INVITE_NEW_EMAIL:
+                $page = "invite_new_email";
+                break;
+            case INVITE_CHANGE_EMAIL:
+                $page = "invite_change_email";
+                break;
+            default:
+                show_error_ui("Internal error: Invalid invitation type");
+                exit;
+        }
+    } else if (isset($_GET['passwd'])) $page = 'passwd';
     else $page = 'admin';
 }
 
@@ -410,11 +502,11 @@ switch ($page) {
     case 'login':
         login_page();
         break;
+    case 'invite_new':
+        invite_new_page();
+        break;
     case 'admin':
         require 'admin_page.inc.php';
-        break;
-    case 'new_user':
-        new_user_page();
         break;
     case 'passwd':
         passwd_page();
@@ -424,6 +516,15 @@ switch ($page) {
         unset($_SESSION['user_data']);
         redirect_login();
         exit;
+    case 'error':
+        if (isset($_SESSION['error_ui'])) {
+            $eui = $_SESSION['error_ui'];
+            unset($_SESSION['error_ui']);
+            set_ui_error_return($eui['return']);
+            show_error_ui($eui['msg'], $eui['title']);
+        } else {
+            show_error_ui("Lost?");
+        }
     default:
         show_error_ui("Lost?");
         exit;

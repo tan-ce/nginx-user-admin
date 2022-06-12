@@ -172,9 +172,9 @@ page_head("Admin"); ?>
                 echo '<th>'.htmlesc($g).'</th>';
             }?></tr>
         <?php  /* Header row end */
-        
+
         $users = $db->query("SELECT * FROM users ORDER BY name COLLATE NOCASE ASC");
-        while ($r = $users->fetchArray(SQLITE3_ASSOC)) { 
+        while ($r = $users->fetchArray(SQLITE3_ASSOC)) {
             $name = htmlesc($r['name']);
             $jsname = jsesc($r['name']);
             $urlname = urlencode($r['name']); ?>
@@ -195,7 +195,7 @@ page_head("Admin"); ?>
                     echo '<td></td>';
                 } else {
                     ?><td><a href="#" onclick="javascript: return delmember('<?php
-                    echo $jsname; ?>', '<?php 
+                    echo $jsname; ?>', '<?php
                     echo jsesc($grp); ?>')"><?php
                     echo htmlesc($grp); ?></a></td><?php
                 }
@@ -226,17 +226,19 @@ page_head("Admin"); ?>
         <tr>
             <th>Link</th>
             <th>Expiry</th>
+            <th>Username</th>
             <th>Groups</th>
             <th>Comment</th>
             <th></th>
         </tr>
         <?php $invites = $db->query("SELECT * FROM invites ".
             "ORDER BY expiry DESC");
-        while ($i = $invites->fetchArray(SQLITE3_ASSOC)) { 
+        while ($i = $invites->fetchArray(SQLITE3_ASSOC)) {
             $link = ADMIN_URL."/?token=".$i['token']; ?>
         <tr>
             <td><a href="<?php echo $link; ?>"><?php echo $link; ?></a></td>
             <td><?php echo $i['expiry']; ?></td>
+            <td><?php echo htmlesc($i['name']); ?></td>
             <td><?php echo htmlesc($i['groups']); ?></td>
             <td><?php echo htmlesc($i['comment']); ?></td>
             <td>
@@ -250,7 +252,10 @@ page_head("Admin"); ?>
     <h1>Create New Invite</h1>
     <?php new_invite_preamble(); ?>
     <form action="<?php echo ADMIN_URL; ?>#invites" method="post">
-        <input type="hidden" name="action" value="newinvite">
+        <input type="hidden" name="action" value="add_invite_new">
+
+        <p>Username (leave blank to allow user to choose):<br>
+        <input type="text" name="name"></p>
 
         <p>Groups (seperate with colons):<br>
         <input type="text" name="groups"></p>

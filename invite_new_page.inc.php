@@ -1,9 +1,9 @@
-<?php global $db;
-/*
- * Precondition: $_GET['token'] is set.
- */
+<?php global $db, $invite;
 
-$token = $_GET['token'];
+if (!isset($invite)) {
+    echo "Invitation missing!";
+    exit;
+}
 
 page_head('New User Registration'); ?>
 <script type="text/javascript">
@@ -16,20 +16,21 @@ page_head('New User Registration'); ?>
 <div id="tabs" class="center-wrap">
     <ul><li><a href="#new_user">Create New User</a></li></ul>
     <div id="new_user">
-    <?php if (!is_null($message)) {
-        $msg = htmlesc($message);
-        echo "<p class=\"message\">$msg</p>\n";
-    } 
+        <?php if (!is_null($message)) {
+            $msg = htmlesc($message);
+            echo "<p class=\"message\">$msg</p>\n";
+        } ?>
 
-    $invite = get_invite($token);
-    if ($invite === false) {
-        echo "<p class=\"message\">The invite token is not valid</p>\n";
-    } else { ?>
-        <form action="<?php echo ADMIN_URL; ?>?token=<?php echo htmlesc($token); ?>" method="post">
-            <input type="hidden" name="action" value="createuser">
+        <form action="<?php echo ADMIN_URL; ?>" method="post">
+            <input type="hidden" name="action" value="invite_new">
+            <input type="hidden" name="token" value="<?php echo $invite['token']; ?>">
 
             <p>Username:<br>
+            <?php if (is_null($invite['name'])) { ?>
             <input type="text" maxlength="32" name="user"></p>
+            <?php } else {
+                echo htmlesc($invite['name'])."</p>\n";
+            } ?>
 
             <p>Password (at least 8 characters, enter twice):<br>
             <input type="password" name="pass1"><br>
@@ -38,7 +39,6 @@ page_head('New User Registration'); ?>
             <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
             <input type="submit" value="Create User" class="button">
         </form>
-<?php    } ?>
 
     </div>
 </div>

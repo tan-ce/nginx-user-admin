@@ -14,6 +14,11 @@ define('AUTH_NONE',  0);
 define('AUTH_USER',  1);
 define('AUTH_ADMIN', 2);
 
+// Defines for invitation types
+define('INVITE_NEW',            0); // New account via manual URL link
+define('INVITE_NEW_EMAIL',      1); // New account via email invite
+define('INVITE_CHANGE_EMAIL',   2); // Used to confirm email address
+
 global $user_data;
 global $user_role;
 global $default_title;
@@ -240,6 +245,23 @@ function show_error_ui($msg, $title = null) {
     </div><?php
 
     page_tail();
+    exit;
+}
+
+// Does not return, will exit after redirecting
+function redirect_error_ui($msg, $title = null) {
+    global $db, $default_title, $ui_error_return;
+    if (!is_null($db)) $db->close();
+
+    if (is_null($title)) $title = $default_title;
+
+    $_SESSION['error_ui'] = array(
+        'title' => $title,
+        'msg' => $msg,
+        'return' => $ui_error_return
+    );
+
+    redirect(ADMIN_URL."/?page=error");
     exit;
 }
 
