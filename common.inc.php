@@ -1,4 +1,8 @@
-<?php require 'config.inc.php';
+<?php
+
+require_once 'config.inc.php';
+require_once 'log.inc.php';
+require_once 'db.inc.php';
 
 // For compatibility with earlier versions of config.inc.php
 if (!defined('DB_PATH')) {
@@ -12,14 +16,12 @@ define('AUTH_ADMIN', 2);
 
 global $user_data;
 global $user_role;
-global $db;
 global $default_title;
 global $message;
 global $ui_error_return;
 
 $user_data = null;
 $user_role = AUTH_NONE;
-$db = null;
 $default_title = "User Administration";
 $message = null;
 $ui_error_return = null;
@@ -184,45 +186,6 @@ function check_auth_uri($uri, $user, $pass) {
     }
 
     return $auth_ok;
-}
-
-function db_rw_init() {
-    global $db;
-
-    $db = new SQLite3(DB_PATH,
-        SQLITE3_OPEN_CREATE | SQLITE3_OPEN_READWRITE);
-    $db->busyTimeout(10000);
-
-    // Make sure tables are set up
-    $db->query('CREATE TABLE IF NOT EXISTS "users" (
-        "name" VARCHAR(32) PRIMARY KEY NOT NULL,
-        "hash" TEXT NOT NULL,
-        "comment" TEXT NOT NULL
-    )');
-    $db->query('CREATE TABLE IF NOT EXISTS "invites" (
-        "token" VARCHAR(22) NOT NULL PRIMARY KEY,
-        "expiry" DATETIME NOT NULL,
-        "groups" TEXT NOT NULL,
-        "comment" TEXT NOT NULL
-    )');
-    $db->query('CREATE TABLE IF NOT EXISTS "groups" (
-        "user" VARCHAR(32) NOT NULL
-            REFERENCES users(name)
-                ON DELETE CASCADE
-                ON UPDATE CASCADE,
-        "grp" VARCHAR(32) NOT NULL,
-        PRIMARY KEY (user, grp)
-    )');
-
-    // Housekeeping
-    $db->query("DELETE FROM invites WHERE expiry < datetime('now');");
-}
-
-function db_ro_init() {
-    global $db;
-
-    $db = new SQLite3(DB_PATH,
-        SQLITE3_OPEN_READONLY);
 }
 
 // Does not return, will exit after displaying

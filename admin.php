@@ -147,6 +147,8 @@ function handle_post_login() {
     $_SESSION['user_data'] = $user_data;
     $_SESSION['user_role'] = $user_role;
 
+    log_msg("Logged in");
+
     // Redirect to home
     redirect(ADMIN_URL);
 }
@@ -191,8 +193,10 @@ function handle_post_passwd() {
             show_error_ui("Error updating password: ".htmlesc($db->lastErrorMsg()));
         }
         if ($user_role == AUTH_ADMIN) {
+            log_msg("Changed password for '$user'");
             redirect(ADMIN_URL);
         } else {
+            log_msg("Changed password");
             passwd_page("Password changed successfully!");
         }
     }
@@ -257,6 +261,8 @@ function handle_post_createuser() {
         $t = SQLite3::escapeString($invite['token']);
         $db->query("DELETE FROM invites WHERE token = '$t'");
         $db->query("COMMIT");
+        log_msg("Created user '${user}' with comment ".
+            "'${invite['comment']}'");
         show_msg_ui("User '$user' created successfully!");
     }
 }
@@ -298,6 +304,7 @@ function handle_post() {
         $user = gfe('user');
         $db->query("DELETE FROM groups WHERE user = '$user'");
         $db->query("DELETE FROM users WHERE name = '$user'");
+        log_msg("User '$user' deleted");
         break;
 
     case 'addgroup':
@@ -313,6 +320,7 @@ function handle_post() {
         } else {
             show_error("Group must only contain letters, numbers, '_', or '-'");
         }
+        log_msg("Added '$user' to group '$grp'");
         break;
 
     case 'delmember':
@@ -321,12 +329,14 @@ function handle_post() {
         $grp = gfe('grp');
         $db->query("DELETE FROM groups WHERE ".
             "user = '$user' AND grp = '$grp'");
+        log_msg("Removed '$user' from group '$grp'");
         break;
 
     case 'delgroup':
         require_admin();
         $grp = gfe('grp');
         $db->query("DELETE FROM groups WHERE grp = '$grp'");
+        log_msg("Removed group '$grp'");
         break;
 
     case 'edit_comment':
@@ -339,12 +349,14 @@ function handle_post() {
             $comment = '';
         }
         $db->query("UPDATE users SET comment = '$comment' WHERE name = '$user'");
+        log_msg("Changed user '$user' comment to '$comment'");
         break;
 
     case 'delinvite':
         require_admin();
         $token = gfe('token');
         $db->query("DELETE FROM invites WHERE token = '$token'");
+        log_msg("Deleted invitation");
         break;
 
     case 'newinvite':
@@ -356,8 +368,9 @@ function handle_post() {
             "(token, expiry, groups, comment) VALUES ".
                 "('$token', datetime('now', '30 days'), ".
                     "'$groups', '$comment')");
-        
+
         header('Location: '.ADMIN_URL, true, 303);
+        log_msg("Created invitation with comment '$comment'");
         break;
 
     default:

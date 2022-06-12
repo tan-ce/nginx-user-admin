@@ -18,6 +18,8 @@ define('REALM', 'realm');
 define('ADMIN_URL', 'https://example.com/admin');
 // The filesystem path to the SQLite database
 define('DB_PATH', 'db/users.sqlite');
+// The filesystem path to a log file
+define('LOG_PATH', 'db/auth.log');
 // Will be run just after the "Create New Invite" header
 function new_invite_preamble() {
 }
