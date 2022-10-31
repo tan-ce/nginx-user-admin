@@ -18,6 +18,7 @@ define('AUTH_ADMIN', 2);
 define('INVITE_NEW',            0); // New account via manual URL link
 define('INVITE_NEW_EMAIL',      1); // New account via email invite
 define('INVITE_CHANGE_EMAIL',   2); // Used to confirm email address
+define('INVITE_RESET',          3); // Password reset link
 
 global $user_data;
 global $user_role;
@@ -284,7 +285,11 @@ function show_msg_ui($msg, $title = null) {
 
         <div id="tabs" class="center-wrap">
             <ul><li><a href="#msg"><?php echo $title; ?></a></li></ul>
-            <div id="msg"><?php echo $msg; ?></div>
+            <div id="msg">
+                <?php echo $msg; ?>
+                <br><br>
+                <a href="<?php echo ADMIN_URL; ?>" class="button">Back</a>
+            </div>
         </div><?php
     page_tail();
     exit;

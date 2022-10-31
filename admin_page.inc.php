@@ -29,6 +29,18 @@ page_head("Admin"); ?>
         return false;
     }
 
+    function setpasswd(user) {
+        window.location.href = "?passwd=" + user;
+        return false;
+    }
+
+    function resetpasswd(user) {
+        var form = $('#resetpasswd');
+        form.find("[name=name]").val(user);
+        form.submit();
+        return false;
+    }
+
     function addgroup(user) {
         grp = prompt("Add " + user + " to which group?", "");
         if (grp == null || grp == '') return false;
@@ -121,6 +133,21 @@ page_head("Admin"); ?>
         $('.button').button();
     }
 
+    function select_user(user) {
+        $("input[name=user_for_action]").prop('checked', false);
+        $("input[name=user_for_action][value=" + $.escapeSelector(user) + "]").prop('checked', true);
+    }
+
+    function do_action(fn) {
+        var elem = $('input[name=user_for_action]:checked');
+        if (elem.length != 1) {
+            alert("No user selected");
+            return false;
+        } else {
+            return fn(elem.val());
+        }
+    }
+
     $(function() {
         var $tabs = $("#tabs");
         $tabs.tabs({
@@ -158,8 +185,20 @@ page_head("Admin"); ?>
 
 <!-- User Table -->
 <div id="users">
+    <form id="resetpasswd" style="display: hidden" method="post" action="<?php echo ADMIN_URL; ?>">
+        <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+        <input type="hidden" name="action" value="gen_reset_invite">
+        <input type="hidden" name="name">
+    </form>
     <p>Admin Group: <?php echo ADMIN_GROUP; ?><br></p>
-    <p>Click a group name to remove that user from that group.<br></p>
+    <p>Click a group name to remove that user from that group.<br></p><?php
+    function action_bar() { ?><div class="want-buttons">
+        <a href="#" onclick="javascript: return do_action(deluser);">Delete User</a>
+        <a href="#" onclick="javascript: return do_action(setpasswd);">Set Password</a>
+        <a href="#" onclick="javascript: return do_action(resetpasswd);">Reset Password</a>
+    </div><?php }
+    action_bar(); ?>
+    <br>
     <table id="users_table" class="want-buttons"><?php
             $query = $db->query("SELECT DISTINCT grp FROM groups ORDER BY grp ASC");
             $grps = array();
@@ -167,25 +206,30 @@ page_head("Admin"); ?>
                 $grps[] = $g['grp'];
             }
             /* Header row start */
-    ?>      <tr><th>User</th><th>Comment</th><th></th><th><th></th></th><?php
-            foreach ($grps as $g) {
-                echo '<th>'.htmlesc($g).'</th>';
-            }?></tr>
+    ?>      <tr>
+                <th></th>
+                <th>User</th>
+                <th>Comment</th>
+                <th></th>
+<?php           foreach ($grps as $g) {
+                echo '<th>'.htmlesc($g).'</th>'; }?>
+            </tr>
         <?php  /* Header row end */
 
         $users = $db->query("SELECT * FROM users ORDER BY name COLLATE NOCASE ASC");
         while ($r = $users->fetchArray(SQLITE3_ASSOC)) {
             $name = htmlesc($r['name']);
             $jsname = jsesc($r['name']);
-            $urlname = urlencode($r['name']); ?>
-            <tr><td><?php echo $name; ?></td>
+            $urlname = urlencode($r['name']);
+            $onclickselect = "onclick=\"javascript: select_user('$jsname');\""; ?>
+            <tr <?php echo $onclickselect; ?>><td>
+                <input type="radio" name="user_for_action" value="<?php echo $name; ?>">
+            </td>
+            <td><?php echo $name; ?></td>
             <td><div class="edit-box" onclick="javascript: return edit_comment('<?php
                 echo $jsname; ?>');"></div><?php echo htmlesc($r['comment']); ?></td>
-            <td><a href="#" onclick="javascript: return deluser('<?php
-                echo $jsname; ?>')">Delete</a></td>
             <td><a href="#" onclick="javascript: return addgroup('<?php
                 echo $jsname; ?>')">Add Group</a></td>
-            <td><a href="?passwd=<?php echo $urlname; ?>">Set Pass</a></td>
             <?php $e_u = SQLite3::escapeString($r['name']);
             foreach ($grps as $grp) {
                 $e_g = SQLite3::escapeString($grp);
@@ -202,6 +246,7 @@ page_head("Admin"); ?>
             } ?></tr>
         <?php } ?>
     </table>
+    <br><?php action_bar(); ?>
 </div>
 
 <!-- Group Table -->
@@ -224,6 +269,7 @@ page_head("Admin"); ?>
     <h1>Invites</h1>
     <table>
         <tr>
+            <th>Type</th>
             <th>Link</th>
             <th>Expiry</th>
             <th>Username</th>
@@ -236,6 +282,20 @@ page_head("Admin"); ?>
         while ($i = $invites->fetchArray(SQLITE3_ASSOC)) {
             $link = ADMIN_URL."/?token=".$i['token']; ?>
         <tr>
+            <td><?php
+                switch ($i['type']) {
+                    case INVITE_NEW:
+                    case INVITE_NEW_EMAIL:
+                        echo "New";
+                        break;
+                    case INVITE_CHANGE_EMAIL:
+                        echo "Email Change";
+                        break;
+                    case INVITE_RESET:
+                        echo "Pass Reset";
+                        break;
+                }
+            ?></td>
             <td><a href="<?php echo $link; ?>"><?php echo $link; ?></a></td>
             <td><?php echo $i['expiry']; ?></td>
             <td><?php echo htmlesc($i['name']); ?></td>
