@@ -195,7 +195,7 @@ page_head("Admin"); ?>
     function action_bar() { ?><div class="want-buttons">
         <a href="#" onclick="javascript: return do_action(deluser);">Delete User</a>
         <a href="#" onclick="javascript: return do_action(setpasswd);">Set Password</a>
-        <a href="#" onclick="javascript: return do_action(resetpasswd);">Reset Password</a>
+        <a href="#" onclick="javascript: return do_action(resetpasswd);">Password Reset Link</a>
     </div><?php }
     action_bar(); ?>
     <br>
